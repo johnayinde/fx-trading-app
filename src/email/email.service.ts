@@ -1,7 +1,11 @@
-import { Injectable, Logger } from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
-import * as nodemailer from 'nodemailer';
+import { Injectable, Logger } from "@nestjs/common";
+import { ConfigService } from "@nestjs/config";
+import * as nodemailer from "nodemailer";
 
+/**
+ * Service for sending emails including OTP verification emails
+ * using SMTP transport configured via environment variables
+ */
 @Injectable()
 export class EmailService {
   private readonly logger = new Logger(EmailService.name);
@@ -9,22 +13,28 @@ export class EmailService {
 
   constructor(private readonly configService: ConfigService) {
     this.transporter = nodemailer.createTransport({
-      host: this.configService.get('SMTP_HOST'),
-      port: this.configService.get('SMTP_PORT'),
-      secure: this.configService.get('SMTP_SECURE') === 'true',
+      host: this.configService.get("SMTP_HOST"),
+      port: this.configService.get("SMTP_PORT"),
+      secure: this.configService.get("SMTP_SECURE") === "true",
       auth: {
-        user: this.configService.get('SMTP_USER'),
-        pass: this.configService.get('SMTP_PASSWORD'),
+        user: this.configService.get("SMTP_USER"),
+        pass: this.configService.get("SMTP_PASSWORD"),
       },
     });
   }
 
+  /**
+   * Send OTP verification email to user
+   * @param email - Recipient email address
+   * @param otp - 6-digit OTP code
+   * @throws Error in production if email sending fails
+   */
   async sendOTP(email: string, otp: string): Promise<void> {
     try {
       const mailOptions = {
-        from: this.configService.get('SMTP_FROM'),
+        from: this.configService.get("SMTP_FROM"),
         to: email,
-        subject: 'Verify Your Email - FX Trading App',
+        subject: "Verify Your Email - FX Trading App",
         html: this.getOTPEmailTemplate(otp),
       };
 
@@ -33,12 +43,17 @@ export class EmailService {
     } catch (error) {
       this.logger.error(`Failed to send OTP to ${email}`, error.stack);
       // In development, we don't throw error to allow testing without email setup
-      if (this.configService.get('NODE_ENV') === 'production') {
+      if (this.configService.get("NODE_ENV") === "production") {
         throw error;
       }
     }
   }
 
+  /**
+   * Generate HTML email template for OTP verification
+   * @param otp - 6-digit OTP code
+   * @returns HTML email template string
+   */
   private getOTPEmailTemplate(otp: string): string {
     return `
       <!DOCTYPE html>

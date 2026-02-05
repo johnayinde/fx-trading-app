@@ -10,6 +10,10 @@ import { TradingModule } from "./trading/trading.module";
 import { TransactionsModule } from "./transactions/transactions.module";
 import { EmailModule } from "./email/email.module";
 
+/**
+ * Root application module that configures database, caching,
+ * and imports all feature modules for the FX trading platform
+ */
 @Module({
   imports: [
     ConfigModule.forRoot({
