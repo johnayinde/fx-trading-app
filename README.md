@@ -10,7 +10,6 @@ A production-ready multi-currency wallet and FX trading platform built with Nest
 - [API Documentation](#api-documentation)
 - [Architecture](#architecture)
 - [Testing](#testing)
-- [Deployment](#deployment)
 - [Environment Variables](#environment-variables)
 
 ---
