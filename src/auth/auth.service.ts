@@ -3,15 +3,19 @@ import {
   UnauthorizedException,
   ConflictException,
   BadRequestException,
-} from '@nestjs/common';
-import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
-import { JwtService } from '@nestjs/jwt';
-import * as bcrypt from 'bcrypt';
-import { User } from '../users/entities/user.entity';
-import { RegisterDto, VerifyOtpDto, LoginDto } from './dto/auth.dto';
-import { EmailService } from '../email/email.service';
+} from "@nestjs/common";
+import { InjectRepository } from "@nestjs/typeorm";
+import { Repository } from "typeorm";
+import { JwtService } from "@nestjs/jwt";
+import * as bcrypt from "bcrypt";
+import { User } from "../users/entities/user.entity";
+import { RegisterDto, VerifyOtpDto, LoginDto } from "./dto/auth.dto";
+import { EmailService } from "../email/email.service";
 
+/**
+ * Service responsible for handling authentication operations
+ * including user registration, login, OTP verification, and token management
+ */
 @Injectable()
 export class AuthService {
   constructor(
@@ -21,6 +25,12 @@ export class AuthService {
     private readonly emailService: EmailService,
   ) {}
 
+  /**
+   * Register a new user and send OTP for email verification
+   * @param registerDto - User registration data (email and password)
+   * @returns Registration success message with email
+   * @throws ConflictException if email is already registered
+   */
   async register(registerDto: RegisterDto) {
     const { email, password } = registerDto;
 
@@ -30,7 +40,7 @@ export class AuthService {
     });
 
     if (existingUser) {
-      throw new ConflictException('Email already registered');
+      throw new ConflictException("Email already registered");
     }
 
     // Hash password
@@ -56,39 +66,50 @@ export class AuthService {
     await this.emailService.sendOTP(email, otp);
 
     return {
-      message: 'Registration successful. Please check your email for OTP.',
+      message: "Registration successful. Please check your email for OTP.",
       email,
     };
   }
 
+  /**
+   * Verify user's email using the OTP code
+   * @param verifyOtpDto - Email and OTP code for verification
+   * @returns JWT token and user information upon successful verification
+   * @throws UnauthorizedException if credentials are invalid
+   * @throws BadRequestException if account is already verified, OTP expired, or max attempts exceeded
+   */
   async verifyOtp(verifyOtpDto: VerifyOtpDto) {
     const { email, otp } = verifyOtpDto;
 
     const user = await this.userRepository.findOne({ where: { email } });
 
     if (!user) {
-      throw new UnauthorizedException('Invalid credentials');
+      throw new UnauthorizedException("Invalid credentials");
     }
 
     if (user.isVerified) {
-      throw new BadRequestException('Account already verified');
+      throw new BadRequestException("Account already verified");
     }
 
     // Check OTP attempts
     if (user.otpAttempts >= 3) {
-      throw new BadRequestException('Maximum OTP attempts exceeded. Please request a new OTP.');
+      throw new BadRequestException(
+        "Maximum OTP attempts exceeded. Please request a new OTP.",
+      );
     }
 
     // Check OTP expiry
     if (!user.otpExpiry || new Date() > user.otpExpiry) {
-      throw new BadRequestException('OTP has expired. Please request a new one.');
+      throw new BadRequestException(
+        "OTP has expired. Please request a new one.",
+      );
     }
 
     // Verify OTP
     if (user.otp !== otp) {
       user.otpAttempts += 1;
       await this.userRepository.save(user);
-      throw new UnauthorizedException('Invalid OTP');
+      throw new UnauthorizedException("Invalid OTP");
     }
 
     // Mark as verified
@@ -102,7 +123,7 @@ export class AuthService {
     const token = await this.generateToken(user);
 
     return {
-      message: 'Email verified successfully',
+      message: "Email verified successfully",
       token,
       user: {
         id: user.id,
@@ -112,30 +133,36 @@ export class AuthService {
     };
   }
 
+  /**
+   * Authenticate user and generate JWT token
+   * @param loginDto - User login credentials (email and password)
+   * @returns JWT token and user information
+   * @throws UnauthorizedException if credentials are invalid or email not verified
+   */
   async login(loginDto: LoginDto) {
     const { email, password } = loginDto;
 
     const user = await this.userRepository.findOne({ where: { email } });
 
     if (!user) {
-      throw new UnauthorizedException('Invalid credentials');
+      throw new UnauthorizedException("Invalid credentials");
     }
 
     if (!user.isVerified) {
-      throw new UnauthorizedException('Please verify your email first');
+      throw new UnauthorizedException("Please verify your email first");
     }
 
     // Verify password
     const isPasswordValid = await bcrypt.compare(password, user.password);
     if (!isPasswordValid) {
-      throw new UnauthorizedException('Invalid credentials');
+      throw new UnauthorizedException("Invalid credentials");
     }
 
     // Generate JWT token
     const token = await this.generateToken(user);
 
     return {
-      message: 'Login successful',
+      message: "Login successful",
       token,
       user: {
         id: user.id,
@@ -145,15 +172,21 @@ export class AuthService {
     };
   }
 
+  /**
+   * Resend OTP to user's email for verification
+   * @param email - User's email address
+   * @returns Success message with email
+   * @throws BadRequestException if user not found or already verified
+   */
   async resendOtp(email: string) {
     const user = await this.userRepository.findOne({ where: { email } });
 
     if (!user) {
-      throw new BadRequestException('User not found');
+      throw new BadRequestException("User not found");
     }
 
     if (user.isVerified) {
-      throw new BadRequestException('Account already verified');
+      throw new BadRequestException("Account already verified");
     }
 
     // Generate new OTP
@@ -170,15 +203,24 @@ export class AuthService {
     await this.emailService.sendOTP(email, otp);
 
     return {
-      message: 'OTP sent successfully',
+      message: "OTP sent successfully",
       email,
     };
   }
 
+  /**
+   * Generate a random 6-digit OTP code
+   * @returns 6-digit OTP string
+   */
   private generateOTP(): string {
     return Math.floor(100000 + Math.random() * 900000).toString();
   }
 
+  /**
+   * Generate JWT token for authenticated user
+   * @param user - User entity
+   * @returns JWT token string
+   */
   private async generateToken(user: User): Promise<string> {
     const payload = {
       sub: user.id,
@@ -188,10 +230,16 @@ export class AuthService {
     return this.jwtService.sign(payload);
   }
 
+  /**
+   * Validate and retrieve user by ID for JWT authentication
+   * @param userId - User's unique identifier
+   * @returns User entity
+   * @throws UnauthorizedException if user not found
+   */
   async validateUser(userId: string): Promise<User> {
     const user = await this.userRepository.findOne({ where: { id: userId } });
     if (!user) {
-      throw new UnauthorizedException('User not found');
+      throw new UnauthorizedException("User not found");
     }
     return user;
   }
